@@ -23,10 +23,6 @@ app.get("/", (res, req) => {
   req.json({ message: "Welcome to Redi Chat App." });
 })
 
-require('./app/routes/auth.route')(app);
-require('./app/routes/user.route')(app);
-require('./app/routes/room.route')(app);
-
 app.use((err, req, res, next) => {
   // Middleware xử lý lỗi tập trung.
   // Trong các đoạn code xử lý ở các route, gọi next(error)
@@ -34,110 +30,6 @@ app.use((err, req, res, next) => {
   return res.status(err.statusCode || 500).json({
     message: err.message || "Internal Server Error",
   });
-});
-
-
-// Socket.io cho Chat với người lạ
-const serverForChatWithStranger = require('http').createServer(app);
-const ioChatWithStranger = require("socket.io")(serverForChatWithStranger, {
-  cors: {
-    origins: "*",
-    credentials: true
-  },
-});
-let countChatRoom = -1;
-
-const getClientRoomStranger = (preRoom, id) => {
-  let i = 0;
-  let nameChatRoom = "";
-  console.log("id", id);
-  for (i = 0; i <= countChatRoom; i++) {
-    nameChatRoom = ('stranger-chat-room-' + i).toString();
-    if (nameChatRoom === preRoom) continue;
-    if (ioChatWithStranger.sockets.adapter.rooms.get(nameChatRoom) && ioChatWithStranger.sockets.adapter.rooms.get(nameChatRoom).size == 1) {
-      const members = ioChatWithStranger.sockets.adapter.rooms.get(nameChatRoom);
-      for (const member of members) {
-        if (member === id) {
-          break;
-        }
-        else return nameChatRoom;
-      }
-      continue;
-    }
-  }
-
-  return ('stranger-chat-room-' + (++countChatRoom)).toString();
-}
-
-ioChatWithStranger.on('connection', (socket) => {
-  let preRoom = "";
-  let clientRoom = getClientRoomStranger(preRoom, socket.id);
-  console.log("clientRoom: " + clientRoom + ".....");
-  socket.join(clientRoom);
-
-  socket.on("nextRoomStranger", data => {
-    preRoom = data;
-    console.log("preRoom: " + preRoom + "......");
-    ioChatWithStranger.in(preRoom).emit('statusRoomStranger', {
-      content: 'NextRoomNextRoomNgười lạ đã rời đi. Đang đợi người lạ ...',
-      createAt: redi.getTime()
-    });
-    socket.leave(preRoom);
-    clientRoom = getClientRoomStranger(preRoom, socket.id);
-    console.log("clientRoomNew: " + clientRoom + ".....");
-    socket.join(clientRoom);
-    if (ioChatWithStranger.sockets.adapter.rooms.get(clientRoom).size < 2) {//.length < 2) {
-      ioChatWithStranger.in(clientRoom).emit('statusRoomStranger', {
-        content: 'Đang đợi người lạ ...',
-        createAt: redi.getTime()
-      });
-    } else {
-      ioChatWithStranger.in(clientRoom).emit('statusRoomStranger', {
-        content: 'Người lạ đã vào phòng|' + clientRoom,
-        createAt: redi.getTime()
-      });
-    }
-  })
-
-  if (ioChatWithStranger.sockets.adapter.rooms.get(clientRoom).size < 2) {//.length < 2) {
-    ioChatWithStranger.in(clientRoom).emit('statusRoomStranger', {
-      content: 'Đang đợi người lạ ...',
-      createAt: redi.getTime()
-    });
-  } else {
-    ioChatWithStranger.in(clientRoom).emit('statusRoomStranger', {
-      content: 'Người lạ đã vào phòng|' + clientRoom,
-      createAt: redi.getTime()
-    });
-  }
-
-  console.log('a user connected');
-  socket.on('disconnect', () => {
-    console.log('user disconnected');
-    socket.to(clientRoom).emit('statusRoomStranger', {
-      content: 'Người lạ đã rời đi. Đang đợi người lạ kế tiếp ...',
-      createAt: redi.getTime()
-    });
-  });
-
-  socket.on('sendMessageStranger', function (message, callback) {
-    socket.to(clientRoom).emit('receiveMessageStranger', {
-      ...message,
-      createAt: redi.getTime()
-    });
-
-    //Tui thêm if vì callback typeError khi dùng postman để test
-    if (typeof callback === 'function') {
-      callback({
-        "status": "ok",
-        "createAt": redi.getTime()
-      });
-    }
-  })
-});
-
-serverForChatWithStranger.listen(3001, () => {
-  console.log('listening on *:3001');
 });
 
 // Socket.io cho người có tài khoản Chat
@@ -152,22 +44,6 @@ const ioForUserChat = require("socket.io")(serverForUserChat, {
 
 const config = require("./app/config/index");
 let jwt = require("jsonwebtoken");
-
-// ioForUserChat.use((socket, next) => {
-//   const token = socket.handshake.auth.token;
-//   console.log("ioForUserChat: ", token);
-//   jwt.verify(token, config.secret, async (err, decoded) => {
-//     if (err) {
-//         console.log('Token không hợp lệ');
-//         return;
-//     }
-//     else{
-//       console.log("ioForUserChat: Hop le");
-//       next();
-//     }
-//     // console.log('token', token);
-//   });
-// });
 
 ioForUserChat.on('connection', (socket) => {
   let userPhone;
@@ -417,9 +293,22 @@ ioForUserChat.on('connection', (socket) => {
   });
 })
 
+const MongoDB = require("./app/utils/mongodb.util");
 
-serverForUserChat.listen(3002, () => {
-  console.log('listening on *:3002');
-});
+async function startServer() {
+    try {
+        
+        await MongoDB.connect(config.db.uri);
+        console.log("Connected to the database!");
 
-module.exports = app
+        serverForUserChat.listen(3000, () => {
+            console.log('listening on *:3000');
+        });
+
+    } catch (error) {
+        console.log("Cannot connect to the database!", error);
+        process.exit();
+    }
+}
+
+startServer();
