@@ -45,6 +45,22 @@ const ioForUserChat = require("socket.io")(serverForUserChat, {
 const config = require("./app/config/index");
 let jwt = require("jsonwebtoken");
 
+// ioForUserChat.use((socket, next) => {
+//   const token = socket.handshake.auth.token;
+//   console.log("ioForUserChat: ", token);
+//   jwt.verify(token, config.secret, async (err, decoded) => {
+//     if (err) {
+//         console.log('Token không hợp lệ');
+//         return;
+//     }
+//     else{
+//       console.log("ioForUserChat: Hop le");
+//       next();
+//     }
+//     // console.log('token', token);
+//   });
+// });
+
 ioForUserChat.on('connection', (socket) => {
   let userPhone;
   let user;
@@ -83,15 +99,25 @@ ioForUserChat.on('connection', (socket) => {
   // Các xử lý sự kiện khi người dùng đăng nhập thành công gồm: 
   //Tìm tài khoản để gửi kết bạn:
   socket.on('findUser', async targetPhone => {
-    let target = await USER.findOne({ phone: targetPhone });
-    console.log("findUser", targetPhone)
     try {
+      let target = await USER.findOne({ phone: targetPhone });
+      console.log("findUser", targetPhone)
       if (target) {
+        let sentFriendRequest = false;
+        for (let i = 0; i < target.requestContact.length; i++) {
+          // console.log(target.requestContact[i]._id,user._id,target.requestContact[i]._id==user._id);
+          if (target.requestContact[i]._id.toString() == user._id.toString()) {
+            sentFriendRequest = true;
+            console.log("sentFriendRequest", sentFriendRequest)
+            break;
+          }
+        }
         socket.emit('foundUser', {
           _id: target._id,
           fullName: target.fullName,
           avatar: target.avatar,
-          phone: target.phone
+          phone: target.phone,
+          sentFriendRequest: sentFriendRequest
         });
       } else {
         socket.emit('message', 'Không tìm thấy tài khoản với số điện thoại này !');
@@ -177,9 +203,9 @@ ioForUserChat.on('connection', (socket) => {
               });
               await chatRoom.save();
               // socket.emit('message', 'Tạo thành công phòng mới trong database');
-              setTimeout(()=>{
-                socket.emit('message', "Đã chấp nhận lời mời kết bạn của " + target.fullName+" ");
-              },200);
+              setTimeout(() => {
+                socket.emit('message', "Đã chấp nhận lời mời kết bạn của " + target.fullName + " ");
+              }, 200);
               setTimeout(() => {
                 socket.to(target.phone.toString()).emit("message", user.fullName + " đã chấp nhận lời mời kết bạn của bạn !")
               }, 350);
@@ -188,7 +214,7 @@ ioForUserChat.on('connection', (socket) => {
             console.error(error);
           };
         } else {
-          socket.emit('message', "Đã từ chối lời mời kết bạn của " + target.fullName+ " ");
+          socket.emit('message', "Đã từ chối lời mời kết bạn của " + target.fullName + " ");
         }
 
       } catch (error) {
@@ -224,6 +250,22 @@ ioForUserChat.on('connection', (socket) => {
     let messages = await MESSAGE.find({ chat: roomId });
     socket.emit('receiveContentChatRoom', messages)
   });
+
+  //Gửi thông tin đã xem tất cả tin nhắn trong phòng roomId
+  socket.on('seenAllMessage', async roomId => {
+    let messages = await MESSAGE.find({ $and: [{ chat: roomId }, { sender: { $ne: user._id } }] });
+    messages.forEach(async message => {
+      if (!message.seen) {
+        await MESSAGE.findOneAndUpdate(
+          { _id: message._id },
+          { $set: { seen: true } },
+          { new: true }
+        );
+      }
+    })
+    socket.to(roomId).emit('updateMessages', roomId);
+  });
+
   //  - Gửi/nhận tin nhắn với bạn bè (có lưu vào CSDL)
   //Message có dạng:
   // {
@@ -232,11 +274,13 @@ ioForUserChat.on('connection', (socket) => {
   //   "type": "image"
   // }
   socket.on('sendMessageFriend', async function (message, callback) {
+    console.log(message)
     let currentRoom = await CHATROOM.findById(message.roomID);
     let createAt = redi.getTime()
     socket.to(currentRoom._id.toString()).emit('receiveMessageFriend', {
       ...message,
-      owner: user._id,
+      sender: user._id,
+      seen: false,
       createAt: createAt
     });
 
@@ -247,11 +291,12 @@ ioForUserChat.on('connection', (socket) => {
       });
     }
 
-    const newMessage = new MESSAGE({
+    newMessage = new MESSAGE({
       content: message.content.toString(),
-      owner: user,
+      sender: user,
       chat: currentRoom,
       createAt: createAt,
+      seen: false,
       type: message.type.toString()
     });
     await newMessage.save();
@@ -265,6 +310,13 @@ ioForUserChat.on('connection', (socket) => {
       { new: true }
     );
   })
+
+  // socket.on("disconnecting", (reason) => {
+  //   console.log(reason); // Set { ... }
+  //   // if(reason === "transport close" || reason === "transport error"){
+  //   //   socket.co
+  //   // }
+  // });
 
   //  - Khi disconnect thì cập nhật lastAccess của user tương ứng trong CSDL
   socket.on('disconnect', async () => {
