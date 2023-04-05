@@ -7,8 +7,8 @@ const userSchema = new mongoose.Schema({
     avatar: { type: String },
     requestContact: [{ type: mongoose.Schema.Types.ObjectId, ref: "USER"}],
     contacts: [{ type: mongoose.Schema.Types.ObjectId, ref: "USER"}],
-    createAt: { type: String, require: true },
-    lastAccess:  { type: String, require: true }
+    createAt: { type: Date, require: true },
+    lastAccess:  { type: Date, require: true }
 })
 
 let USER = mongoose.model("USER", userSchema);
