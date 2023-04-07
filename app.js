@@ -315,12 +315,9 @@ ioForUserChat.on('connection', (socket) => {
     );
   })
 
-  // socket.on("disconnecting", (reason) => {
-  //   console.log(reason); // Set { ... }
-  //   // if(reason === "transport close" || reason === "transport error"){
-  //   //   socket.co
-  //   // }
-  // });
+  socket.on("disconnecting", (reason) => {
+    console.log("[Socket Friend] ["+user.fullName+"] Bị ngắt kết nối do: "+reason);
+  });
 
   //  - Khi disconnect thì cập nhật lastAccess của user tương ứng trong CSDL
   socket.on('disconnect', async () => {
