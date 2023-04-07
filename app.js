@@ -51,7 +51,7 @@ let jwt = require("jsonwebtoken");
 
 ioForUserChat.use((socket, next) => {
   const token = socket.handshake.auth.token;
-  console.log("ioForUserChat: ", token);
+  //console.log("ioForUserChat: ", token);
   jwt.verify(token, config.secret, async (err, decoded) => {
     if (err) {
       console.log('Token không hợp lệ');
@@ -105,14 +105,14 @@ ioForUserChat.on('connection', (socket) => {
   socket.on('findUser', async targetPhone => {
     try {
       let target = await USER.findOne({ phone: targetPhone });
-      console.log("findUser", targetPhone)
+      //console.log("findUser", targetPhone)
       if (target) {
         let sentFriendRequest = false;
         for (let i = 0; i < target.requestContact.length; i++) {
           // console.log(target.requestContact[i]._id,user._id,target.requestContact[i]._id==user._id);
           if (target.requestContact[i]._id.toString() == user._id.toString()) {
             sentFriendRequest = true;
-            console.log("sentFriendRequest", sentFriendRequest)
+            //console.log("sentFriendRequest", sentFriendRequest)
             break;
           }
         }
@@ -138,8 +138,8 @@ ioForUserChat.on('connection', (socket) => {
     } else {
       try {
         // const targetUser = await USER.findOne({phone: targetPhone});
-        console.log("targetPhone", targetPhone);
-        console.log("user", user);
+        //console.log("targetPhone", targetPhone);
+        //console.log("user", user);
         // await targetUser.updateOne({
         //   $push: { requestContact: user._id }
         // })
@@ -166,7 +166,7 @@ ioForUserChat.on('connection', (socket) => {
   socket.on('actionFriendRequest', async data => {
     let target = await USER.findOne({ phone: data.phone });
     let accept = data.accept;
-    console.log(data.phone)
+    //console.log(data.phone)
     let check = await USER.findOne({ phone: user.phone, requestContact: { $in: [target] }, });
     if (check) {
       try {
@@ -278,7 +278,7 @@ ioForUserChat.on('connection', (socket) => {
   //   "type": "image"
   // }
   socket.on('sendMessageFriend', async function (message, callback) {
-    console.log(message)
+    //console.log(message)
     let currentRoom = await CHATROOM.findById(message.roomID);
     let createAt = redi.getTime()
     socket.to(currentRoom._id.toString()).emit('receiveMessageFriend', {
