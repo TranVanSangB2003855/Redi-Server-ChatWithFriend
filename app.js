@@ -49,21 +49,21 @@ const ioForUserChat = require("socket.io")(serverForUserChat, {
 const config = require("./app/config/index");
 let jwt = require("jsonwebtoken");
 
-// ioForUserChat.use((socket, next) => {
-//   const token = socket.handshake.auth.token;
-//   console.log("ioForUserChat: ", token);
-//   jwt.verify(token, config.secret, async (err, decoded) => {
-//     if (err) {
-//         console.log('Token không hợp lệ');
-//         return;
-//     }
-//     else{
+ioForUserChat.use((socket, next) => {
+  const token = socket.handshake.auth.token;
+  console.log("ioForUserChat: ", token);
+  jwt.verify(token, config.secret, async (err, decoded) => {
+    if (err) {
+      console.log('Token không hợp lệ');
+      return;
+    }
+    else {
 //       console.log("ioForUserChat: Hop le");
-//       next();
-//     }
-//     // console.log('token', token);
-//   });
-// });
+      next();
+    }
+    // console.log('token', token);
+  });
+});
 
 ioForUserChat.on('connection', (socket) => {
   let userPhone;
